@@ -2,13 +2,18 @@ const fs = require('fs');
 const readline = require('readline');
 const {google} = require('googleapis');
 
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+const SCOPES = [
+    'https://mail.google.com/',
+    'https://www.googleapis.com/auth/gmail.modify',
+    'https://www.googleapis.com/auth/gmail.compose',
+    'https://www.googleapis.com/auth/gmail.send'
+];
 const TOKEN_PATH = 'token.json';
 
 fs.readFile('./libs/credentials.json', (err, content) => {
   if (err) return console.log('Error loading client secret file:', err);
   // Authorize a client with credentials, then call the Gmail API.
-  authorize(JSON.parse(content), listLabels);
+  authorize(JSON.parse(content), sendMessage);
 });
 
 function authorize(credentials, callback) {
@@ -49,20 +54,31 @@ function getNewToken(oAuth2Client, callback) {
   });
 }
 
-function listLabels(auth) {
-  const gmail = google.gmail({version: 'v1', auth});
-  gmail.users.labels.list({
-    userId: 'me',
-  }, (err, res) => {
-    if (err) return console.log('The API returned an error: ' + err);
-    const labels = res.data.labels;
-    if (labels.length) {
-      console.log('Labels:');
-      labels.forEach((label) => {
-        console.log(`- ${label.name}`);
-      });
-    } else {
-      console.log('No labels found.');
-    }
-  });
+const makeBody = (to, from, subject, message) => {
+  const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=\r\n`;
+  var messageParts = [
+    'Content-Type: text/html; charset=utf-8',
+    'MIME-Version: 1.0',
+    `To: ${to}`,
+    `From: ${from}`,
+    `subject: ${utf8Subject}`,
+    message
+  ].join('\n');
+
+  const encodedMessage = Buffer.from(messageParts)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  return encodedMessage;
+}
+
+export const sendMessage = async(auth) =>{
+  const gmail = await google.gmail({version: 'v1', auth});
+  const raw = makeBody('admin@4pro.me', 'zhoujuncheng0116@gmail.com', 'test subject', 'test message');
+  const res = await gmail.users.messages.send({
+    userId:'me',
+    resource:{raw:raw},
+  })
+  // console.log(res);
 }
